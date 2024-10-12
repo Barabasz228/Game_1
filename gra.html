@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gra Kliknięcia</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #score {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        #highScore {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        #timer {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        #clickButton {
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        #clickButton:hover {
+            background-color: #45a049;
+        }
+        #endMessage {
+            font-size: 24px;
+            display: none;
+            margin-top: 20px;
+        }
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #2196F3;
+            color: white;
+            display: none;
+        }
+        #restartButton:hover {
+            background-color: #1976D2;
+        }
+        #difficultySelect, #skinSelect {
+            margin-bottom: 20px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .notebook-icon {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+        }
+        #updateLog {
+            display: none;
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            width: 300px;
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        #battlePass {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        .bonus {
+            position: absolute;
+            padding: 5px;
+            border-radius: 5px;
+            font-size: 16px;
+            color: black;
+            animation: bounce 0.5s;
+        }
+        @keyframes bounce {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0); }
+        }
+        .skin1 {
+            background-color: gold;
+        }
+        .skin2 {
+            background-color: silver;
+        }
+        .skin3 {
+            background-color: #cd5c5c; /* Crimson */
+        }
+        .skin4 {
+            background-color: #1e90ff; /* DodgerBlue */
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Punkty: 0</div>
+    <div id="highScore">Najwyższy wynik: 0</div>
+    <div id="timer">Czas: 10</div>
+    <select id="difficultySelect">
+        <option value="easy">Łatwy (10 sek)</option>
+        <option value="medium">Średni (7 sek)</option>
+        <option value="hard">Trudny (5 sek)</option>
+    </select>
+    <select id="skinSelect">
+        <option value="skin1">Skórka 1 (0 pkt)</option>
+        <option value="skin2">Skórka 2 (10 pkt)</option>
+        <option value="skin3">Skórka 3 (20 pkt)</option>
+        <option value="skin4">Skórka 4 (30 pkt)</option>
+    </select>
+    <button id="clickButton">Kliknij mnie!</button>
+    <div id="endMessage"></div>
+    <button id="restartButton">Zacznij nową grę</button>
+
+    <div class="notebook-icon" onclick="toggleUpdateLog()">
+        📝
+    </div>
+    <div id="updateLog">
+        <h3>Dziennik aktualizacji</h3>
+        <ul>
+            <li>Update 1: Dodano nowe funkcje.</li>
+            <li>Update 2: Poprawki błędów.</li>
+            <li>Update 3: Ulepszenia interfejsu.</li>
+            <li>Update 4: Dodano nowe skórki.</li>
+            <li>Update 5: System bonusów.</li>
+            <li>Update 6: Dodano automatyczny zapis, konta i karnet bojowy.</li>
+        </ul>
+        <button onclick="toggleUpdateLog()">Zamknij</button>
+    </div>
+
+    <div id="battlePass">
+        <h3>Karnet bojowy</h3>
+        <p>Postęp: <span id="battlePassProgress">0%</span></p>
+        <p>Wygrane: <span id="wins">0</span></p>
+    </div>
+
+    <audio id="clickSound" src="click-sound.mp3"></audio>
+    <audio id="endSound" src="end-sound.mp3"></audio>
+
+    <script>
+        let score = 0;
+        let highScore = 0;
+        let timeLeft = 10;
+        let timerId;
+        let fastClick = false;
+        let currentSkin = 'skin1'; // Domyślna skórka
+        let battlePassProgress = 0; // Postęp karnetu bojowego
+        let wins = 0; // Liczba wygranych gier
+        const playerDataKey = 'playerData'; // Klucz do lokalnej pamięci
+
+        const scoreDisplay = document.getElementById('score');
+        const highScoreDisplay = document.getElementById('highScore');
+        const timerDisplay = document.getElementById('timer');
+        const clickButton = document.getElementById('clickButton');
+        const endMessage = document.getElementById('endMessage');
+        const restartButton = document.getElementById('restartButton');
+        const difficultySelect = document.getElementById('difficultySelect');
+        const skinSelect = document.getElementById('skinSelect');
+        const clickSound = document.getElementById('clickSound');
+        const endSound = document.getElementById('endSound');
+        const battlePassProgressDisplay = document.getElementById('battlePassProgress');
+        const winsDisplay = document.getElementById('wins');
+
+        // Funkcja do zapisywania danych gracza w lokalnej pamięci
+        function savePlayerData() {
+            const playerData = {
+                score: score,
+                highScore: highScore,
+                battlePassProgress: battlePassProgress,
+                wins: wins,
+            };
+            localStorage.setItem(playerDataKey, JSON.stringify(playerData));
+        }
+
+        // Funkcja do ładowania danych gracza z lokalnej pamięci
+        function loadPlayerData() {
+            const playerData = JSON.parse(localStorage.getItem(playerDataKey));
+            if (playerData) {
+                score = playerData.score;
+                highScore = playerData.highScore;
+                battlePassProgress = playerData.battlePassProgress;
+                wins = playerData.wins;
+            }
+            updateDisplays();
+        }
+
+        function updateDisplays() {
+            scoreDisplay.textContent = 'Punkty: ' + score;
+            highScoreDisplay.textContent = 'Najwyższy wynik: ' + highScore;
+            battlePassProgressDisplay.textContent = battlePassProgress + '%';
+            winsDisplay.textContent = wins;
+        }
+
+        clickButton.addEventListener('click', function() {
+            if (timeLeft > 0) {
+                score++;
+                clickSound.play(); // Odtwórz dźwięk kliknięcia
+                createBonus(); // Tworzenie bonusu
+
+                // Przyspieszenie zdobywania punktów po 5. punkcie
+                if (score % 5 === 0) {
+                    fastClick = true;
+                    clickButton.style.transform = 'scale(1.1)';
+                    setTimeout(() => {
+                        fastClick = false;
+                        clickButton.style.transform = 'scale(1)';
+                    }, 1000);
+                }
+
+                if (score > highScore) {
+                    highScore = score;
+                }
+                updateDisplays();
+            }
+        });
+
+        function createBonus() {
+            const bonus = document.createElement('div');
+            bonus.classList.add('bonus', currentSkin);
+            bonus.textContent = '+1';
+            bonus.style.left = Math.random() * 90 + 'vw'; // Losowa pozycja
+            bonus.style.top = Math.random() * 90 + 'vh'; // Losowa pozycja
+            document.body.appendChild(bonus);
+
+            // Zniknięcie bonusu po 5 sekundach
+            setTimeout(() => {
+                bonus.remove();
+            }, 5000);
+
+            // Dodawanie punktów po kliknięciu w bonus
+            bonus.addEventListener('click', () => {
+                score += 1;
+                updateDisplays();
+                bonus.remove();
+            });
+        }
+
+        function startGame() {
+            timeLeft = difficultySelect.value === 'easy' ? 10 : difficultySelect.value === 'medium' ? 7 : 5;
+            score = 0;
+            fastClick = false;
+            clickButton.style.transform = 'scale(1)';
+            endMessage.style.display = 'none';
+            restartButton.style.display = 'none';
+
+            loadPlayerData(); // Załaduj dane gracza
+            updateDisplays();
+
+            timerId = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = 'Czas: ' + timeLeft;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerId);
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function endGame() {
+            endMessage.textContent = 'Koniec gry! Twój wynik: ' + score;
+            endMessage.style.display = 'block';
+            restartButton.style.display = 'block';
+            endSound.play(); // Odtwórz dźwięk końca gry
+            savePlayerData(); // Zapisz dane gracza
+            if (score >= 10) {
+                battlePassProgress += 10; // Zwiększ postęp karnetu bojowego
+                wins += 1; // Zwiększ liczbę wygranych
+            }
+            updateDisplays();
+        }
+
+        function changeSkin() {
+            const selectedSkin = skinSelect.value;
+            const cost = { skin1: 0, skin2: 10, skin3: 20, skin4: 30 }[selectedSkin];
+
+            if (score >= cost) {
+                score -= cost; // Odejmij koszt od punktów
+                currentSkin = selectedSkin; // Ustaw nową skórkę
+                updateDisplays();
+            }
+        }
+
+        function toggleUpdateLog() {
+            const updateLog = document.getElementById('updateLog');
+            updateLog.style.display = updateLog.style.display === 'none' ? 'block' : 'none';
+        }
+
+        restartButton.addEventListener('click', startGame);
+        skinSelect.addEventListener('change', changeSkin);
+        difficultySelect.addEventListener('change', startGame);
+
+        startGame(); // Rozpocznij grę przy ładowaniu
+    </script>
+</body>
+</html>
